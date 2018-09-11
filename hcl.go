@@ -98,7 +98,7 @@ func (v *Value) String() string {
 	case v.Boolean != nil:
 		return fmt.Sprintf("%v", *v.Boolean)
 	case v.Identifier != nil:
-		return fmt.Sprintf("`%s`", *v.Identifier)
+		return *v.Identifier
 	case v.Str != nil:
 		return *v.Str
 	case v.Number != nil:
