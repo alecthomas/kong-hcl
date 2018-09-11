@@ -1,8 +1,8 @@
 module github.com/alecthomas/kong-hcl
 
 require (
-	github.com/alecthomas/kong v0.0.0-20180814110558-ebe508cf4619
-	github.com/alecthomas/participle v0.0.0-20180801095730-433a43f4119e
+	github.com/alecthomas/kong v0.0.0-20180911000223-862837e6faa2
+	github.com/alecthomas/participle v0.1.0
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/testify v1.2.2
