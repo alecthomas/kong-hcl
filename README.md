@@ -1,4 +1,4 @@
-# A Kong configuration loader for HCL [![](https://godoc.org/github.com/alecthomas/konghcl?status.svg)](http://godoc.org/github.com/alecthomas/konghcl) [![CircleCI](https://img.shields.io/circleci/project/github/alecthomas/konghcl.svg)](https://circleci.com/gh/alecthomas/konghcl)
+# A Kong configuration loader for HCL [![](https://godoc.org/github.com/alecthomas/kong-hcl?status.svg)](http://godoc.org/github.com/alecthomas/kong-hcl) [![CircleCI](https://img.shields.io/circleci/project/github/alecthomas/kong-hcl.svg)](https://circleci.com/gh/alecthomas/kong-hcl)
 
 Use it like so:
 
