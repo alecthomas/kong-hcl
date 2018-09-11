@@ -11,17 +11,17 @@ import (
 
 func TestHCL(t *testing.T) {
 	var cli struct {
-		Flag    string
-		Command struct {
-			Nested string
+		FlagName string
+		Command  struct {
+			NestedFlag string
 		} `cmd`
 	}
 	r := strings.NewReader(`
 
-		flag = "hello world"
+		flag-name = "hello world"
 
 		command {
-			nested = "nested flag"
+			nested-flag = "nested flag"
 		}
 
 	`)
@@ -31,6 +31,6 @@ func TestHCL(t *testing.T) {
 	require.NoError(t, err)
 	_, err = parser.Parse([]string{"command"})
 	require.NoError(t, err)
-	require.Equal(t, "hello world", cli.Flag)
-	require.Equal(t, "nested flag", cli.Command.Nested)
+	require.Equal(t, "hello world", cli.FlagName)
+	require.Equal(t, "nested flag", cli.Command.NestedFlag)
 }

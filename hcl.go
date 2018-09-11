@@ -43,7 +43,7 @@ type Config struct {
 	Entries []*Entry `{ @@ }`
 }
 
-func (c *Config) Find(path []string) *Value {
+func (c *Config) Find(path []string) *Value { // nolint: golint
 	for _, entry := range c.Entries {
 		if entry.Key == path[0] {
 			return entry.Find(path[1:])
@@ -58,7 +58,7 @@ type Block struct {
 	Entries    []*Entry `"{" { @@ } "}"`
 }
 
-func (b *Block) Find(path []string) *Value {
+func (b *Block) Find(path []string) *Value { // nolint: golint
 	for _, entry := range b.Entries {
 		if entry.Key == path[0] {
 			return entry.Find(path[1:])
@@ -69,12 +69,12 @@ func (b *Block) Find(path []string) *Value {
 
 // An Entry in a HCL block.
 type Entry struct {
-	Key   string `@Ident`
+	Key   string `@( Ident { "-" Ident } )`
 	Value *Value `( "=" @@`
 	Block *Block `| @@ )`
 }
 
-func (e *Entry) Find(path []string) *Value {
+func (e *Entry) Find(path []string) *Value { // nolint: golint
 	if e.Block != nil {
 		return e.Block.Find(path)
 	}
@@ -87,7 +87,7 @@ func (e *Entry) Find(path []string) *Value {
 // A Value for a key in HCL.
 type Value struct {
 	Boolean    *Bool    `  @("true"|"false")`
-	Identifier *string  `| @Ident { @"." @Ident }`
+	Identifier *string  `| @( Ident { "-" Ident } { "." Ident { "-" Ident } } )`
 	Str        *string  `| @(String|Char|RawString)`
 	Number     *float64 `| @(Float|Int)`
 	Array      []*Value `| "[" { @@ [ "," ] } "]"`
