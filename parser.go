@@ -10,18 +10,30 @@ import (
 // Parser for HCL.
 var Parser = participle.MustBuild(&Config{})
 
+func findEntries(entries []*Entry, path []string) *Value {
+	if len(path) == 0 {
+		return nil
+	}
+	for _, entry := range entries {
+		if entry.Key == path[0] {
+			return entry.Find(path[1:])
+		}
+		prefix := entry.Key + "-"
+		if strings.HasPrefix(path[0], prefix) {
+			path = append([]string{strings.TrimPrefix(path[0], prefix)}, path[1:]...)
+			return entry.Find(path)
+		}
+	}
+	return nil
+}
+
 // Config is the root configuration structure.
 type Config struct {
 	Entries []*Entry `{ @@ }`
 }
 
 func (c *Config) Find(path []string) *Value { // nolint: golint
-	for _, entry := range c.Entries {
-		if entry.Key == path[0] {
-			return entry.Find(path[1:])
-		}
-	}
-	return nil
+	return findEntries(c.Entries, path)
 }
 
 // A Block is a group of HCL entries.
@@ -31,12 +43,7 @@ type Block struct {
 }
 
 func (b *Block) Find(path []string) *Value { // nolint: golint
-	for _, entry := range b.Entries {
-		if entry.Key == path[0] {
-			return entry.Find(path[1:])
-		}
-	}
-	return nil
+	return findEntries(b.Entries, path)
 }
 
 // An Entry in a HCL block.

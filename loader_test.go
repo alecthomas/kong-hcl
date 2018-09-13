@@ -14,12 +14,13 @@ func TestHCL(t *testing.T) {
 		EmbeddedFlag string
 	}
 	var cli struct {
-		FlagName    string
-		IntFlag     int
-		FloatFlag   float64
-		SliceFlag   []int
-		GroupedFlag string `group:"group"`
-		Embedded    `group:"group"`
+		FlagName     string
+		IntFlag      int
+		FloatFlag    float64
+		SliceFlag    []int
+		GroupedFlag  string `group:"group"`
+		PrefixedFlag string `prefix:"prefix-"`
+		Embedded     `group:"group"`
 	}
 	r := strings.NewReader(`
 
@@ -28,6 +29,9 @@ func TestHCL(t *testing.T) {
 		float-flag = 10.5
 		slice-flag = [1, 2, 3]
 
+		prefix {
+			prefixed-flag = "prefixed flag"
+		}
 		group {
 			grouped-flag = "grouped flag"
 			embedded-flag = "embedded flag"
@@ -42,6 +46,8 @@ func TestHCL(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "hello world", cli.FlagName)
 	require.Equal(t, "grouped flag", cli.GroupedFlag)
+	require.Equal(t, "grouped flag", cli.GroupedFlag)
+	require.Equal(t, "prefixed flag", cli.PrefixedFlag)
 	require.Equal(t, "embedded flag", cli.EmbeddedFlag)
 	require.Equal(t, 10, cli.IntFlag)
 	require.Equal(t, 10.5, cli.FloatFlag)
