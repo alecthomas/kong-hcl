@@ -46,7 +46,6 @@ func TestHCL(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "hello world", cli.FlagName)
 	require.Equal(t, "grouped flag", cli.GroupedFlag)
-	require.Equal(t, "grouped flag", cli.GroupedFlag)
 	require.Equal(t, "prefixed flag", cli.PrefixedFlag)
 	require.Equal(t, "embedded flag", cli.EmbeddedFlag)
 	require.Equal(t, 10, cli.IntFlag)
