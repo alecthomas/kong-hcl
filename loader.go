@@ -6,8 +6,6 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
-
 	"github.com/alecthomas/kong"
 	"github.com/hashicorp/hcl"
 )
@@ -96,5 +94,5 @@ func stringify(value interface{}) (string, error) {
 		return strings.Join(parts, ","), nil
 	}
 
-	return "", fmt.Errorf("invalid value %#v", spew.Sdump(value))
+	return "", fmt.Errorf("invalid value %#v", value)
 }
