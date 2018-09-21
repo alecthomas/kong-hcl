@@ -35,13 +35,13 @@ func (r *Resolver) Validate(app *kong.Application) error { // nolint: golint	app
 	// Find all valid configuration keys from the Application.
 	valid := map[string]bool{}
 	path := []string{}
-	kong.Visit(app, func(node kong.Visitable, next kong.Next) error {
+	_ = kong.Visit(app, func(node kong.Visitable, next kong.Next) error {
 		switch node := node.(type) {
 		case *kong.Node:
 			path = append(path, node.Name)
-			err := next(nil)
+			_ = next(nil)
 			path = path[:len(path)-1]
-			return err
+			return nil
 
 		case *kong.Flag:
 			flagPath := append([]string{}, path...)
