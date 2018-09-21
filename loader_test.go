@@ -40,7 +40,7 @@ func TestHCL(t *testing.T) {
 	`)
 	resolver, err := Loader(r)
 	require.NoError(t, err)
-	parser, err := kong.New(&cli, kong.Resolver(resolver))
+	parser, err := kong.New(&cli, kong.Resolvers(resolver))
 	require.NoError(t, err)
 	_, err = parser.Parse(nil)
 	require.NoError(t, err)
@@ -51,4 +51,22 @@ func TestHCL(t *testing.T) {
 	require.Equal(t, 10, cli.IntFlag)
 	require.Equal(t, 10.5, cli.FloatFlag)
 	require.Equal(t, []int{1, 2, 3}, cli.SliceFlag)
+}
+
+func TestHCLValidation(t *testing.T) {
+	type command struct {
+		CommandFlag string
+	}
+	var cli struct {
+		Command command `cmd:""`
+		Flag    string
+	}
+	resolver, err := Loader(strings.NewReader(`
+		invalid-flag = true
+	`))
+	require.NoError(t, err)
+	parser, err := kong.New(&cli, kong.Resolvers(resolver))
+	require.NoError(t, err)
+	_, err = parser.Parse([]string{"command"})
+	require.EqualError(t, err, "unknown configuration key \"invalid-flag\" in \"<hcl>\"")
 }

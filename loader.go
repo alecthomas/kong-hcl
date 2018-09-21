@@ -10,8 +10,24 @@ import (
 	"github.com/hashicorp/hcl"
 )
 
+// Resolver resolves kong Flags from configuration in HCL.
+type Resolver struct {
+	filename string
+	config   map[string]interface{}
+}
+
+var _ kong.Resolver = &Resolver{}
+
+type named interface {
+	Name() string
+}
+
 // Loader is a Kong configuration loader for HCL.
-func Loader(r io.Reader) (kong.ResolverFunc, error) {
+func Loader(r io.Reader) (*Resolver, error) {
+	name := "<hcl>"
+	if named, ok := r.(named); ok {
+		name = named.Name()
+	}
 	data, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
@@ -21,24 +37,101 @@ func Loader(r io.Reader) (kong.ResolverFunc, error) {
 	if err != nil {
 		return nil, err
 	}
+	return &Resolver{config: config, filename: name}, nil
+}
 
-	return func(context *kong.Context, parent *kong.Path, flag *kong.Flag) (string, error) {
-		// Build a string path up to this flag.
-		path := []string{}
-		for n := parent.Node(); n != nil && n.Type != kong.ApplicationNode; n = n.Parent {
-			path = append([]string{n.Name}, path...)
-		}
-		if flag.Group != "" {
-			path = append([]string{flag.Group}, path...)
-		}
-		path = append(path, flag.Name)
+func (r *Resolver) Validate(app *kong.Application) error { // nolint: golint	app.FullPath()
+	valid := map[string]bool{}
+	path := []string{}
+	kong.Visit(app, func(node kong.Visitable, next kong.Next) error {
+		switch node := node.(type) {
+		case *kong.Node:
+			path = append(path, node.Name)
+			err := next(nil)
+			path = path[:len(path)-1]
+			return err
 
-		value, err := find(config, path)
-		if err != nil {
-			return "", err
+		case *kong.Flag:
+			flagPath := append([]string{}, path...)
+			if node.Group != "" {
+				flagPath = append(flagPath, node.Group)
+			}
+			valid[strings.Join(append(flagPath, node.Name), "-")] = true
+
+		default:
+			return next(nil)
 		}
-		return stringify(value)
-	}, nil
+		return nil
+	})
+	for key := range flattenConfig(r.config) {
+		if !valid[key] {
+			return fmt.Errorf("unknown configuration key %q in %q", key, r.filename)
+		}
+	}
+	return nil
+}
+
+func (r *Resolver) Resolve(context *kong.Context, parent *kong.Path, flag *kong.Flag) (string, error) { // nolint: golint
+	path := r.pathForFlag(parent, flag)
+	value, err := find(r.config, path)
+	if err != nil {
+		return "", err
+	}
+	return stringify(value)
+}
+
+func flattenConfig(config map[string]interface{}) map[string]bool {
+	out := map[string]bool{}
+	for _, path := range flattenNode(config) {
+		out[strings.Join(path, "-")] = true
+	}
+	return out
+}
+
+func flattenNode(config interface{}) [][]string {
+	out := [][]string{}
+	switch config := config.(type) {
+	case []map[string]interface{}:
+		for _, group := range config {
+			out = append(out, flattenNode(group)...)
+		}
+	case map[string]interface{}:
+		for key, value := range config {
+			children := flattenNode(value)
+			if len(children) == 0 {
+				out = append(out, []string{key})
+			} else {
+				for _, childValue := range children {
+					out = append(out, append([]string{key}, childValue...))
+				}
+			}
+		}
+
+	case []interface{}:
+		for _, el := range config {
+			out = flattenNode(el)
+		}
+
+	case bool, float64, int, string:
+		return nil
+
+	default:
+		panic(fmt.Sprintf("unsupported type %T", config))
+	}
+	return out
+}
+
+// Build a string path up to this flag.
+func (r *Resolver) pathForFlag(parent *kong.Path, flag *kong.Flag) []string {
+	path := []string{}
+	for n := parent.Node(); n != nil && n.Type != kong.ApplicationNode; n = n.Parent {
+		path = append([]string{n.Name}, path...)
+	}
+	if flag.Group != "" {
+		path = append([]string{flag.Group}, path...)
+	}
+	path = append(path, flag.Name)
+	return path
 }
 
 func find(config map[string]interface{}, path []string) (interface{}, error) {

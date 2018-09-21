@@ -1,5 +1,5 @@
-github.com/alecthomas/kong v0.1.1 h1:1b++pP9yOYGQAkE34wpktMZrzK6yxkotMOqJEPj+ScY=
-github.com/alecthomas/kong v0.1.1/go.mod h1:bSvZejG++spllMcepZA1uFFZgMfqRS8nSkGm2SXQiPU=
+github.com/alecthomas/kong v0.1.7-0.20180921062350-c112a076e71f h1:y+WWMFGtzqPF2O5or7lETkbWppvOOO7xUbNPg/ccf34=
+github.com/alecthomas/kong v0.1.7-0.20180921062350-c112a076e71f/go.mod h1:0m2VYms8rH0qbCqVB2gvGHk74bqLIq0HXjCs5bNbNQU=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/hashicorp/hcl v1.0.0 h1:0Anlzjpi4vEasTeNFn2mLJgTSwt0+6sfsiTG8qcWGx4=
