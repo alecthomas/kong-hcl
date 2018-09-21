@@ -12,22 +12,13 @@ import (
 
 // Resolver resolves kong Flags from configuration in HCL.
 type Resolver struct {
-	filename string
-	config   map[string]interface{}
+	config map[string]interface{}
 }
 
-var _ kong.Resolver = &Resolver{}
-
-type named interface {
-	Name() string
-}
+var _ kong.ConfigurationLoader = Loader
 
 // Loader is a Kong configuration loader for HCL.
-func Loader(r io.Reader) (*Resolver, error) {
-	name := "<hcl>"
-	if named, ok := r.(named); ok {
-		name = named.Name()
-	}
+func Loader(r io.Reader) (kong.Resolver, error) {
 	data, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
@@ -37,10 +28,11 @@ func Loader(r io.Reader) (*Resolver, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Resolver{config: config, filename: name}, nil
+	return &Resolver{config: config}, nil
 }
 
 func (r *Resolver) Validate(app *kong.Application) error { // nolint: golint	app.FullPath()
+	// Find all valid configuration keys from the Application.
 	valid := map[string]bool{}
 	path := []string{}
 	kong.Visit(app, func(node kong.Visitable, next kong.Next) error {
@@ -63,9 +55,10 @@ func (r *Resolver) Validate(app *kong.Application) error { // nolint: golint	app
 		}
 		return nil
 	})
+	// Then check all configuration keys against the Application keys.
 	for key := range flattenConfig(r.config) {
 		if !valid[key] {
-			return fmt.Errorf("unknown configuration key %q in %q", key, r.filename)
+			return fmt.Errorf("unknown configuration key %q", key)
 		}
 	}
 	return nil

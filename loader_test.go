@@ -68,5 +68,5 @@ func TestHCLValidation(t *testing.T) {
 	parser, err := kong.New(&cli, kong.Resolvers(resolver))
 	require.NoError(t, err)
 	_, err = parser.Parse([]string{"command"})
-	require.EqualError(t, err, "unknown configuration key \"invalid-flag\" in \"<hcl>\"")
+	require.EqualError(t, err, "unknown configuration key \"invalid-flag\"")
 }
