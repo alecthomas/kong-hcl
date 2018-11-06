@@ -36,7 +36,6 @@ func TestHCL(t *testing.T) {
 			grouped-flag = "grouped flag"
 			embedded-flag = "embedded flag"
 		}
-
 	`)
 	resolver, err := Loader(r)
 	require.NoError(t, err)

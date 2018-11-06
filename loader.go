@@ -1,6 +1,7 @@
 package konghcl
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -31,9 +32,10 @@ func Loader(r io.Reader) (kong.Resolver, error) {
 	return &Resolver{config: config}, nil
 }
 
-func (r *Resolver) Validate(app *kong.Application) error { // nolint: golint	app.FullPath()
+func (r *Resolver) Validate(app *kong.Application) error { // nolint: golint
 	// Find all valid configuration keys from the Application.
 	valid := map[string]bool{}
+	rawPrefixes := []string{}
 	path := []string{}
 	_ = kong.Visit(app, func(node kong.Visitable, next kong.Next) error {
 		switch node := node.(type) {
@@ -48,7 +50,12 @@ func (r *Resolver) Validate(app *kong.Application) error { // nolint: golint	app
 			if node.Group != "" {
 				flagPath = append(flagPath, node.Group)
 			}
-			valid[strings.Join(append(flagPath, node.Name), "-")] = true
+			key := strings.Join(append(flagPath, node.Name), "-")
+			if _, ok := node.Value.Target.Interface().(RawConfigFlag); ok {
+				rawPrefixes = append(rawPrefixes, key)
+			} else {
+				valid[key] = true
+			}
 
 		default:
 			return next(nil)
@@ -56,8 +63,14 @@ func (r *Resolver) Validate(app *kong.Application) error { // nolint: golint	app
 		return nil
 	})
 	// Then check all configuration keys against the Application keys.
+next:
 	for key := range flattenConfig(r.config) {
 		if !valid[key] {
+			for _, prefix := range rawPrefixes {
+				if strings.HasPrefix(key, prefix) {
+					continue next
+				}
+			}
 			return fmt.Errorf("unknown configuration key %q", key)
 		}
 	}
@@ -69,6 +82,16 @@ func (r *Resolver) Resolve(context *kong.Context, parent *kong.Path, flag *kong.
 	value, err := find(r.config, path)
 	if err != nil {
 		return "", err
+	}
+	// Raw config flags are returned as JSON-encoded objects.
+	if _, ok := flag.Value.Target.Interface().(RawConfigFlag); ok {
+		bare, ok := value.([]map[string]interface{})
+		if !ok || len(bare) != 1 {
+			return "", fmt.Errorf("expected configuration key %q (for flag %s) to be a single map but got %T",
+				strings.Join(path, "-"), flag, value)
+		}
+		data, err := json.Marshal(bare[0])
+		return string(data), err
 	}
 	return stringify(value)
 }
