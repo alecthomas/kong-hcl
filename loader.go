@@ -64,7 +64,7 @@ func (r *Resolver) Validate(app *kong.Application) error { // nolint: golint
 	})
 	// Then check all configuration keys against the Application keys.
 next:
-	for key := range flattenConfig(r.config) {
+	for key := range flattenConfig(valid, r.config) {
 		if !valid[key] {
 			for _, prefix := range rawPrefixes {
 				if strings.HasPrefix(key, prefix) {
@@ -84,7 +84,7 @@ func (r *Resolver) Resolve(context *kong.Context, parent *kong.Path, flag *kong.
 		return "", err
 	}
 	// Raw config flags are returned as JSON-encoded objects.
-	if _, ok := flag.Value.Target.Interface().(RawConfigFlag); ok {
+	if _, ok := flag.Value.Target.Interface().(RawConfigFlag); value != nil && ok {
 		bare, ok := value.([]map[string]interface{})
 		if !ok || len(bare) != 1 {
 			return "", fmt.Errorf("expected configuration key %q (for flag %s) to be a single map but got %T",
@@ -96,9 +96,17 @@ func (r *Resolver) Resolve(context *kong.Context, parent *kong.Path, flag *kong.
 	return stringify(value)
 }
 
-func flattenConfig(config map[string]interface{}) map[string]bool {
+func flattenConfig(schema map[string]bool, config map[string]interface{}) map[string]bool {
 	out := map[string]bool{}
+next:
 	for _, path := range flattenNode(config) {
+		for i := len(path) - 1; i >= 0; i-- {
+			candidate := strings.Join(path[:i], "-")
+			if schema[candidate] {
+				out[candidate] = true
+				continue next
+			}
+		}
 		out[strings.Join(path, "-")] = true
 	}
 	return out
@@ -191,6 +199,19 @@ func stringify(value interface{}) (string, error) {
 	case string:
 		return value, nil
 
+	case []map[string]interface{}:
+		parts := []string{}
+		for _, m := range value {
+			for k, v := range m {
+				sv, err := stringify(v)
+				if err != nil {
+					return "", err
+				}
+				parts = append(parts, fmt.Sprintf("%s=%s", k, sv))
+			}
+		}
+		return kong.JoinEscaped(parts, ';'), nil
+
 	case []interface{}:
 		parts := []string{}
 		for _, n := range value {
@@ -200,8 +221,8 @@ func stringify(value interface{}) (string, error) {
 			}
 			parts = append(parts, sn)
 		}
-		return strings.Join(parts, ","), nil
+		return kong.JoinEscaped(parts, ','), nil
 	}
 
-	return "", fmt.Errorf("invalid value %#v", value)
+	return "", fmt.Errorf("unsupported value of type %T", value)
 }

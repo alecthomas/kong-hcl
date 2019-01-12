@@ -21,6 +21,7 @@ func TestHCL(t *testing.T) {
 		GroupedFlag  string `group:"group"`
 		PrefixedFlag string `prefix:"prefix-"`
 		Embedded     `group:"group"`
+		MapFlag      map[string]string
 	}
 	r := strings.NewReader(`
 
@@ -36,6 +37,9 @@ func TestHCL(t *testing.T) {
 			grouped-flag = "grouped flag"
 			embedded-flag = "embedded flag"
 		}
+		map-flag = {
+			key = "value"
+		}
 	`)
 	resolver, err := Loader(r)
 	require.NoError(t, err)
@@ -50,6 +54,7 @@ func TestHCL(t *testing.T) {
 	require.Equal(t, 10, cli.IntFlag)
 	require.Equal(t, 10.5, cli.FloatFlag)
 	require.Equal(t, []int{1, 2, 3}, cli.SliceFlag)
+	require.Equal(t, map[string]string{"key": "value"}, cli.MapFlag)
 }
 
 func TestHCLValidation(t *testing.T) {
