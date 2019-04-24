@@ -9,6 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type mapperValue struct {
+	Left  string
+	Right string
+}
+
+func (m *mapperValue) Decode(ctx *kong.DecodeContext) error {
+	return DecodeValue(ctx, m)
+}
+
 func TestHCL(t *testing.T) {
 	type Embedded struct {
 		EmbeddedFlag string
@@ -22,9 +31,9 @@ func TestHCL(t *testing.T) {
 		PrefixedFlag string `prefix:"prefix-"`
 		Embedded     `group:"group"`
 		MapFlag      map[string]string
+		Mapped       mapperValue
 	}
 	r := strings.NewReader(`
-
 		flag-name = "hello world"
 		int-flag = 10
 		float-flag = 10.5
@@ -39,6 +48,13 @@ func TestHCL(t *testing.T) {
 		}
 		map-flag = {
 			key = "value"
+		}
+		// Multiple keys are merged.
+		mapped = {
+			left = "left"
+		}
+		mapped = {
+			right = "right"
 		}
 	`)
 	resolver, err := Loader(r)
@@ -55,6 +71,7 @@ func TestHCL(t *testing.T) {
 	require.Equal(t, 10.5, cli.FloatFlag)
 	require.Equal(t, []int{1, 2, 3}, cli.SliceFlag)
 	require.Equal(t, map[string]string{"key": "value"}, cli.MapFlag)
+	require.Equal(t, mapperValue{Left: "left", Right: "right"}, cli.Mapped)
 }
 
 func TestHCLValidation(t *testing.T) {

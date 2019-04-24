@@ -9,6 +9,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/hashicorp/hcl"
+	"github.com/pkg/errors"
 )
 
 // Resolver resolves kong Flags from configuration in HCL.
@@ -17,6 +18,46 @@ type Resolver struct {
 }
 
 var _ kong.ConfigurationLoader = Loader
+
+// DecodeValue decodes Kong values into a Go structure.
+func DecodeValue(ctx *kong.DecodeContext, dest interface{}) error {
+	v := ctx.Scan.Pop().Value
+	var (
+		data []byte
+		err  error
+	)
+	switch v := v.(type) {
+	case string:
+		// Value is a string; it can either be a filename or a HCL fragment.
+		if strings.HasPrefix(v, "{") {
+			data = []byte(v)
+		} else {
+			filename := kong.ExpandPath(v)
+			data, err = ioutil.ReadFile(filename) // nolint: gosec
+			if err != nil {
+				return fmt.Errorf("invalid HCL in %q: %s", filename, err)
+			}
+		}
+	case []map[string]interface{}:
+		merged := map[string]interface{}{}
+		for _, m := range v {
+			for k, v := range m {
+				merged[k] = v
+			}
+		}
+		data, err = json.Marshal(merged)
+		if err != nil {
+			return err
+		}
+
+	default:
+		data, err = json.Marshal(v)
+		if err != nil {
+			return err
+		}
+	}
+	return errors.Wrapf(hcl.Unmarshal(data, dest), "invalid HCL %q", data)
+}
 
 // Loader is a Kong configuration loader for HCL.
 func Loader(r io.Reader) (kong.Resolver, error) {
@@ -27,7 +68,7 @@ func Loader(r io.Reader) (kong.Resolver, error) {
 	config := map[string]interface{}{}
 	err = hcl.Unmarshal(data, &config)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "invalid HCL")
 	}
 	return &Resolver{config: config}, nil
 }
@@ -51,7 +92,7 @@ func (r *Resolver) Validate(app *kong.Application) error { // nolint: golint
 				flagPath = append(flagPath, node.Group)
 			}
 			key := strings.Join(append(flagPath, node.Name), "-")
-			if _, ok := node.Value.Target.Interface().(RawConfigFlag); ok {
+			if _, ok := node.Target.Interface().(kong.MapperValue); ok {
 				rawPrefixes = append(rawPrefixes, key)
 			} else {
 				valid[key] = true
@@ -77,23 +118,52 @@ next:
 	return nil
 }
 
-func (r *Resolver) Resolve(context *kong.Context, parent *kong.Path, flag *kong.Flag) (string, error) { // nolint: golint
+func (r *Resolver) Resolve(context *kong.Context, parent *kong.Path, flag *kong.Flag) (interface{}, error) { // nolint: golint
 	path := r.pathForFlag(parent, flag)
-	value, err := find(r.config, path)
-	if err != nil {
-		return "", err
+	return find(r.config, path)
+}
+
+// Build a string path up to this flag.
+func (r *Resolver) pathForFlag(parent *kong.Path, flag *kong.Flag) []string {
+	path := []string{}
+	for n := parent.Node(); n != nil && n.Type != kong.ApplicationNode; n = n.Parent {
+		path = append([]string{n.Name}, path...)
 	}
-	// Raw config flags are returned as JSON-encoded objects.
-	if _, ok := flag.Value.Target.Interface().(RawConfigFlag); value != nil && ok {
-		bare, ok := value.([]map[string]interface{})
-		if !ok || len(bare) != 1 {
-			return "", fmt.Errorf("expected configuration key %q (for flag %s) to be a single map but got %T",
-				strings.Join(path, "-"), flag, value)
+	if flag.Group != "" {
+		path = append([]string{flag.Group}, path...)
+	}
+	path = append(path, flag.Name)
+	return path
+}
+
+func find(config map[string]interface{}, path []string) (interface{}, error) {
+	if len(path) == 0 {
+		return nil, nil
+	}
+
+	// Check if we have a "prefix-<key>".
+	parts := strings.SplitN(path[0], "-", 2)
+	if config[path[0]] == nil && len(parts) == 2 {
+		if children, ok := config[parts[0]].([]map[string]interface{}); ok {
+			path = append([]string{parts[1]}, path[1:]...)
+			return find(children[0], path)
 		}
-		data, err := json.Marshal(bare[0])
-		return string(data), err
 	}
-	return stringify(value)
+
+	if len(path) == 1 {
+		return config[path[0]], nil
+	}
+
+	child, ok := config[path[0]]
+	if !ok {
+		return nil, nil
+	}
+
+	if children, ok := child.([]map[string]interface{}); ok {
+		return find(children[0], path[1:])
+	}
+
+	return nil, nil
 }
 
 func flattenConfig(schema map[string]bool, config map[string]interface{}) map[string]bool {
@@ -143,86 +213,4 @@ func flattenNode(config interface{}) [][]string {
 		panic(fmt.Sprintf("unsupported type %T", config))
 	}
 	return out
-}
-
-// Build a string path up to this flag.
-func (r *Resolver) pathForFlag(parent *kong.Path, flag *kong.Flag) []string {
-	path := []string{}
-	for n := parent.Node(); n != nil && n.Type != kong.ApplicationNode; n = n.Parent {
-		path = append([]string{n.Name}, path...)
-	}
-	if flag.Group != "" {
-		path = append([]string{flag.Group}, path...)
-	}
-	path = append(path, flag.Name)
-	return path
-}
-
-func find(config map[string]interface{}, path []string) (interface{}, error) {
-	if len(path) == 0 {
-		return nil, nil
-	}
-
-	// Check if we have a "prefix-<key>".
-	parts := strings.SplitN(path[0], "-", 2)
-	if config[path[0]] == nil && len(parts) == 2 {
-		if children, ok := config[parts[0]].([]map[string]interface{}); ok {
-			path = append([]string{parts[1]}, path[1:]...)
-			return find(children[0], path)
-		}
-	}
-
-	if len(path) == 1 {
-		return config[path[0]], nil
-	}
-
-	child, ok := config[path[0]]
-	if !ok {
-		return nil, nil
-	}
-
-	if children, ok := child.([]map[string]interface{}); ok {
-		return find(children[0], path[1:])
-	}
-
-	return nil, nil
-}
-
-func stringify(value interface{}) (string, error) {
-	switch value := value.(type) {
-	case nil:
-		return "", nil
-
-	case bool, int, float64:
-		return fmt.Sprintf("%v", value), nil
-
-	case string:
-		return value, nil
-
-	case []map[string]interface{}:
-		parts := []string{}
-		for _, m := range value {
-			for k, v := range m {
-				sv, err := stringify(v)
-				if err != nil {
-					return "", err
-				}
-				parts = append(parts, fmt.Sprintf("%s=%s", k, sv))
-			}
-		}
-		return kong.JoinEscaped(parts, ';'), nil
-
-	case []interface{}:
-		parts := []string{}
-		for _, n := range value {
-			sn, err := stringify(n)
-			if err != nil {
-				return "", err
-			}
-			parts = append(parts, sn)
-		}
-		return kong.JoinEscaped(parts, ','), nil
-	}
-
-	return "", fmt.Errorf("unsupported value of type %T", value)
 }
