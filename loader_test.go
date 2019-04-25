@@ -85,7 +85,10 @@ func TestHCL(t *testing.T) {
 		var cli CLI
 		parser, err := kong.New(&cli)
 		require.NoError(t, err)
-		_, err = parser.Parse([]string{"--mapped", `{"left":"LEFT","right":"RIGHT"}`})
+		_, err = parser.Parse([]string{"--mapped", `
+		left = "LEFT"
+		right = "RIGHT"
+		`})
 		require.NoError(t, err)
 		require.Equal(t, mapperValue{Left: "LEFT", Right: "RIGHT"}, cli.Mapped)
 	})

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/alecthomas/kong"
@@ -29,14 +30,12 @@ func DecodeValue(ctx *kong.DecodeContext, dest interface{}) error {
 	switch v := v.(type) {
 	case string:
 		// Value is a string; it can either be a filename or a HCL fragment.
-		if strings.HasPrefix(v, "{") {
+		filename := kong.ExpandPath(v)
+		data, err = ioutil.ReadFile(filename) // nolint: gosec
+		if os.IsNotExist(err) {
 			data = []byte(v)
-		} else {
-			filename := kong.ExpandPath(v)
-			data, err = ioutil.ReadFile(filename) // nolint: gosec
-			if err != nil {
-				return fmt.Errorf("invalid HCL in %q: %s", filename, err)
-			}
+		} else if err != nil {
+			return errors.Wrapf(err, "invalid HCL in %q", filename)
 		}
 	case []map[string]interface{}:
 		merged := map[string]interface{}{}
@@ -112,7 +111,7 @@ next:
 					continue next
 				}
 			}
-			return fmt.Errorf("unknown configuration key %q", key)
+			return errors.Errorf("unknown configuration key %q", key)
 		}
 	}
 	return nil
