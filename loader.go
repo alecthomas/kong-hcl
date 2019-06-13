@@ -135,33 +135,26 @@ func (r *Resolver) pathForFlag(parent *kong.Path, flag *kong.Flag) []string {
 	return path
 }
 
+// Find the value that path maps to.
 func find(config map[string]interface{}, path []string) (interface{}, error) {
 	if len(path) == 0 {
-		return nil, nil
+		return config, nil
 	}
 
-	// Check if we have a "prefix-<key>".
-	parts := strings.SplitN(path[0], "-", 2)
-	if config[path[0]] == nil && len(parts) == 2 {
-		if children, ok := config[parts[0]].([]map[string]interface{}); ok {
-			path = append([]string{parts[1]}, path[1:]...)
-			return find(children[0], path)
+	key := strings.Join(path, "-")
+	parts := strings.SplitN(key, "-", -1)
+	for i := len(parts); i > 0; i-- {
+		prefix := strings.Join(parts[:i], "-")
+		if sub := config[prefix]; sub != nil {
+			if sub, ok := sub.([]map[string]interface{}); ok {
+				if len(sub) > 1 {
+					return sub, nil
+				}
+				return find(sub[0], parts[i:])
+			}
+			return sub, nil
 		}
 	}
-
-	if len(path) == 1 {
-		return config[path[0]], nil
-	}
-
-	child, ok := config[path[0]]
-	if !ok {
-		return nil, nil
-	}
-
-	if children, ok := child.([]map[string]interface{}); ok {
-		return find(children[0], path[1:])
-	}
-
 	return nil, nil
 }
 

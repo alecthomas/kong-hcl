@@ -14,7 +14,7 @@ jobs:
           command: |
             unset GOPATH
             go get -v github.com/jstemmer/go-junit-report
-            curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | bash -s v1.10.2
+            curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | bash -s v1.15.0
             mkdir ~/report
           when: always
       - run:
@@ -24,6 +24,7 @@ jobs:
       - run:
           name: Lint
           command: |
+            unset GOPATH
             ./bin/golangci-lint run
       - store_test_results:
           path: ~/report

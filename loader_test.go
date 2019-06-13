@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/alecthomas/kong"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,6 +35,10 @@ const testConfig = `
 	mapped = {
 		right = "right"
 	}
+
+	prefix-block {
+		embedded-flag = "yes"
+	}
 `
 
 type mapperValue struct {
@@ -50,15 +55,16 @@ func TestHCL(t *testing.T) {
 		EmbeddedFlag string
 	}
 	type CLI struct {
-		FlagName     string
-		IntFlag      int
-		FloatFlag    float64
-		SliceFlag    []int
-		GroupedFlag  string `group:"group"`
-		PrefixedFlag string `prefix:"prefix-"`
-		Embedded     `group:"group"`
-		MapFlag      map[string]string
-		Mapped       mapperValue
+		FlagName      string
+		IntFlag       int
+		FloatFlag     float64
+		SliceFlag     []int
+		GroupedFlag   string `group:"group"`
+		PrefixedFlag  string `prefix:"prefix-"`
+		Embedded      `group:"group"`
+		PrefixedBlock Embedded `embed:"" prefix:"prefix-block-"`
+		MapFlag       map[string]string
+		Mapped        mapperValue
 	}
 
 	t.Run("FromResolver", func(t *testing.T) {
@@ -70,15 +76,16 @@ func TestHCL(t *testing.T) {
 		require.NoError(t, err)
 		_, err = parser.Parse(nil)
 		require.NoError(t, err)
-		require.Equal(t, "hello world", cli.FlagName)
-		require.Equal(t, "grouped flag", cli.GroupedFlag)
-		require.Equal(t, "prefixed flag", cli.PrefixedFlag)
-		require.Equal(t, "embedded flag", cli.EmbeddedFlag)
-		require.Equal(t, 10, cli.IntFlag)
-		require.Equal(t, 10.5, cli.FloatFlag)
-		require.Equal(t, []int{1, 2, 3}, cli.SliceFlag)
-		require.Equal(t, map[string]string{"key": "value"}, cli.MapFlag)
-		require.Equal(t, mapperValue{Left: "left", Right: "right"}, cli.Mapped)
+		assert.Equal(t, "hello world", cli.FlagName)
+		assert.Equal(t, "grouped flag", cli.GroupedFlag)
+		assert.Equal(t, "prefixed flag", cli.PrefixedFlag)
+		assert.Equal(t, "embedded flag", cli.EmbeddedFlag)
+		assert.Equal(t, 10, cli.IntFlag)
+		assert.Equal(t, 10.5, cli.FloatFlag)
+		assert.Equal(t, []int{1, 2, 3}, cli.SliceFlag)
+		assert.Equal(t, map[string]string{"key": "value"}, cli.MapFlag)
+		assert.Equal(t, mapperValue{Left: "left", Right: "right"}, cli.Mapped)
+		assert.Equal(t, Embedded{EmbeddedFlag: "yes"}, cli.PrefixedBlock)
 	})
 
 	t.Run("FragmentFromFlag", func(t *testing.T) {
