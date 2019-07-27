@@ -98,4 +98,3 @@ func formatFlag(indent string, flag *kong.Flag, grouped bool) {
 		fmt.Println(flag.FormatPlaceHolder())
 	}
 }
-
