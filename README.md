@@ -6,7 +6,7 @@ Use it like so:
 var cli struct {
     Config kong.ConfigFlag `help:"Load configuration."`
 }
-parser, err := kong.New(&cli, kong.Configuration(konghcl.Loader, "/etc/myapp/config.hcl", "~/.myapp.hcl))
+parser, err := kong.New(&cli, kong.Configuration(konghcl.Loader, "/etc/myapp/config.hcl", "~/.myapp.hcl"))
 ```
 
 ## Mapping HCL fragments to a struct
