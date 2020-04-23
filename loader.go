@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alecthomas/repr"
 	"github.com/alecthomas/kong"
+	"github.com/alecthomas/repr"
 	"github.com/hashicorp/hcl"
 	"github.com/pkg/errors"
 )
@@ -70,7 +70,7 @@ func Loader(r io.Reader) (kong.Resolver, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid HCL")
 	}
-  repr.Println(config)
+	repr.Println(config)
 	return &Resolver{config: config}, nil
 }
 
