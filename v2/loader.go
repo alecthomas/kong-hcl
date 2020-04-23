@@ -1,6 +1,7 @@
 package konghcl
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,10 +9,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alecthomas/repr"
 	"github.com/alecthomas/kong"
-	"github.com/hashicorp/hcl"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/pkg/errors"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // Resolver resolves kong Flags from configuration in HCL.
@@ -28,10 +32,11 @@ func DecodeValue(ctx *kong.DecodeContext, dest interface{}) error {
 		data []byte
 		err  error
 	)
+	filename := "config.hcl"
 	switch v := v.(type) {
 	case string:
 		// Value is a string; it can either be a filename or a HCL fragment.
-		filename := kong.ExpandPath(v)
+		filename = kong.ExpandPath(v)
 		data, err = ioutil.ReadFile(filename) // nolint: gosec
 		if os.IsNotExist(err) {
 			data = []byte(v)
@@ -56,22 +61,142 @@ func DecodeValue(ctx *kong.DecodeContext, dest interface{}) error {
 			return err
 		}
 	}
-	return errors.Wrapf(hcl.Unmarshal(data, dest), "invalid HCL %q", data)
+
+	parser := hclparse.NewParser()
+	var (
+		ast  *hcl.File
+		diag hcl.Diagnostics
+	)
+	if bytes.HasPrefix(data, []byte("{")) {
+		ast, diag = parser.ParseJSON(data, filename)
+	} else {
+		ast, diag = parser.ParseHCL(data, filename)
+	}
+	if diag.HasErrors() {
+		return errors.Errorf("invalid HCL %s: %s", data, diag[0].Summary)
+	}
+	diag = gohcl.DecodeBody(ast.Body, nil, dest)
+	if diag.HasErrors() {
+		return errors.Errorf("invalid HCL %s: %s", data, diag[0].Summary)
+	}
+	return nil
 }
 
 // Loader is a Kong configuration loader for HCL.
 func Loader(r io.Reader) (kong.Resolver, error) {
-	data, err := ioutil.ReadAll(r)
+	filename := "config.hcl"
+	if named, ok := r.(interface{ Name() string }); ok {
+		filename = named.Name()
+	}
+	parser := hclparse.NewParser()
+	source, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	ast, diag := parser.ParseHCL(source, filename)
+	if diag.HasErrors() {
+		return nil, errors.Wrap(diag, filename)
+	}
+	config := map[string]interface{}{}
+	err = flattenHCL(nil, ast.Body.(*hclsyntax.Body), config)
 	if err != nil {
 		return nil, err
 	}
-	config := map[string]interface{}{}
-	err = hcl.Unmarshal(data, &config)
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid HCL")
-	}
-  repr.Println(config)
 	return &Resolver{config: config}, nil
+}
+
+func flattenHCL(key []string, node hclsyntax.Node, dest map[string]interface{}) (err error) {
+	defer func() {
+		if err != nil && len(key) > 0 {
+			err = errors.Wrap(err, key[len(key)-1])
+		}
+	}()
+	switch node := node.(type) {
+	case hclsyntax.Attributes:
+		for attr, value := range node {
+			if err := flattenHCL(append(key, attr), value, dest); err != nil {
+				return err
+			}
+		}
+	case *hclsyntax.Attribute:
+		value, err := decodeHCLExpr(node.Expr)
+		if err != nil {
+			return err
+		}
+		dest[strings.Join(key, "-")] = value
+	case hclsyntax.Blocks:
+		for _, block := range node {
+			if err := flattenHCL(key, block, dest); err != nil {
+				return err
+			}
+		}
+	case *hclsyntax.Block:
+		sub := map[string]interface{}{}
+		key = append(key, node.Type)
+		for _, label := range node.Labels {
+			next := map[string]interface{}{}
+			sub[label] = []map[string]interface{}{next}
+			sub = next
+		}
+		if err := flattenHCL(nil, node.Body, sub); err != nil {
+			return err
+		}
+		dkey := strings.Join(key, "-")
+		switch value := dest[dkey].(type) {
+		case nil:
+			dest[dkey] = []map[string]interface{}{sub}
+		case []map[string]interface{}:
+			value = append(value, sub)
+			dest[dkey] = value
+		}
+	case *hclsyntax.Body:
+		if err := flattenHCL(key, node.Attributes, dest); err != nil {
+			return err
+		}
+		if err := flattenHCL(key, node.Blocks, dest); err != nil {
+			return err
+		}
+	default:
+		panic(fmt.Sprintf("%T", node))
+	}
+	return nil
+}
+
+func decodeHCLExpr(expr hclsyntax.Expression) (interface{}, error) {
+	value, diag := expr.Value(nil)
+	if diag.HasErrors() {
+		return nil, errors.WithStack(diag)
+	}
+	return decodeCTYValue(value), nil
+}
+
+func decodeCTYValue(value cty.Value) interface{} {
+	switch value.Type() {
+	case cty.String:
+		return value.AsString()
+	case cty.Bool:
+		return value.True()
+	case cty.Number:
+		f, _ := value.AsBigFloat().Float64()
+		return f
+	default:
+		if value.Type().IsListType() || value.Type().IsTupleType() {
+			out := []interface{}{}
+			value.ForEachElement(func(key cty.Value, val cty.Value) (stop bool) {
+				out = append(out, decodeCTYValue(val))
+				return false
+			})
+			return out
+		} else if value.Type().IsMapType() || value.Type().IsObjectType() {
+			out := map[string]interface{}{}
+			value.ForEachElement(func(key cty.Value, val cty.Value) (stop bool) {
+				out[key.AsString()] = decodeCTYValue(val)
+				return false
+			})
+			return out
+		}
+	}
+	panic(value.Type().GoString())
 }
 
 func (r *Resolver) Validate(app *kong.Application) error { // nolint: golint
