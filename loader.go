@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
-	"github.com/alecthomas/repr"
 	"github.com/hashicorp/hcl"
 	"github.com/pkg/errors"
 )
@@ -70,7 +69,6 @@ func Loader(r io.Reader) (kong.Resolver, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid HCL")
 	}
-	repr.Println(config)
 	return &Resolver{config: config}, nil
 }
 
@@ -144,6 +142,9 @@ func find(config map[string]interface{}, path []string) (interface{}, error) {
 	}
 
 	key := strings.Join(path, "-")
+	if sub := config[key]; sub != nil {
+		return sub, nil
+	}
 	parts := strings.SplitN(key, "-", -1)
 	for i := len(parts); i > 0; i-- {
 		prefix := strings.Join(parts[:i], "-")
@@ -154,7 +155,6 @@ func find(config map[string]interface{}, path []string) (interface{}, error) {
 				}
 				return find(sub[0], parts[i:])
 			}
-			return sub, nil
 		}
 	}
 	return nil, nil

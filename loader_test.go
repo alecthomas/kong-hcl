@@ -52,7 +52,8 @@ func (m *mapperValue) Decode(ctx *kong.DecodeContext) error {
 
 func TestHCL(t *testing.T) {
 	type Embedded struct {
-		EmbeddedFlag string
+		EmbeddedFlagTwo string
+		EmbeddedFlag    string
 	}
 	type CLI struct {
 		FlagName      string
