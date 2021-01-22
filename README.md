@@ -69,14 +69,15 @@ Additionally, HCL block keys will be used as a hyphen-separated prefix when look
 
 ## Example
 
-The following HCL configuration file...
+The following Kong CLI:
 
-```hcl
-debug = true
-
-db {
-    dsn = "root@/database"
-    trace = true
+```go
+type CLI struct {
+  Debug bool
+  DB struct {
+    DSN string
+    Trace bool
+  } `embed:"" prefix:"db-"`
 }
 ```
 
@@ -86,4 +87,15 @@ Maps to the following flags:
 --debug
 --db-dsn=<string>
 --db-trace
+```
+
+And can be configured via the following HCL configuration file...
+
+```hcl
+debug = true
+
+db {
+    dsn = "root@/database"
+    trace = true
+}
 ```
