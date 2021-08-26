@@ -214,8 +214,8 @@ func (r *Resolver) Validate(app *kong.Application) error { // nolint: golint
 
 		case *kong.Flag:
 			flagPath := append([]string{}, path...)
-			if node.Group != "" {
-				flagPath = append(flagPath, node.Group)
+			if node.Group != nil {
+				flagPath = append(flagPath, node.Group.Key)
 			}
 			key := strings.Join(append(flagPath, node.Name), "-")
 			if _, ok := node.Target.Interface().(kong.MapperValue); ok {
@@ -255,8 +255,8 @@ func (r *Resolver) pathForFlag(parent *kong.Path, flag *kong.Flag) []string {
 	for n := parent.Node(); n != nil && n.Type != kong.ApplicationNode; n = n.Parent {
 		path = append([]string{n.Name}, path...)
 	}
-	if flag.Group != "" {
-		path = append([]string{flag.Group}, path...)
+	if flag.Group != nil {
+		path = append([]string{flag.Group.Key}, path...)
 	}
 	path = append(path, flag.Name)
 	return path
