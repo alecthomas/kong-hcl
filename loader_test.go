@@ -21,10 +21,6 @@ const testConfig = `
 	prefix {
 		prefixed-flag = "prefixed flag"
 	}
-	group {
-		grouped-flag = "grouped flag"
-		embedded-flag = "embedded flag"
-	}
 	map-flag = {
 		key = "value"
 	}
@@ -78,9 +74,7 @@ func TestHCL(t *testing.T) {
 		_, err = parser.Parse(nil)
 		require.NoError(t, err)
 		assert.Equal(t, "hello world", cli.FlagName)
-		assert.Equal(t, "grouped flag", cli.GroupedFlag)
 		assert.Equal(t, "prefixed flag", cli.PrefixedFlag)
-		assert.Equal(t, "embedded flag", cli.EmbeddedFlag)
 		assert.Equal(t, 10, cli.IntFlag)
 		assert.Equal(t, 10.5, cli.FloatFlag)
 		assert.Equal(t, []int{1, 2, 3}, cli.SliceFlag)
